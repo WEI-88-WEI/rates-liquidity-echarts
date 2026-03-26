@@ -54,18 +54,11 @@ def merge_years(col):
     return merged
 
 
-def fred_csv_series(series_id, start=START, end=END):
-    u = f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}&cosd={start}&coed={end}'
-    text = get_with_retries(u, timeout=60).text
-    rows = list(csv.DictReader(io.StringIO(text)))
-    out = []
-    for row in rows:
-        d = row.get('DATE')
-        v = row.get(series_id)
-        if not d or v in (None, '', '.'):
-            continue
-        out.append({'date': d, 'value': float(v)})
-    return out
+def load_static_swap_series():
+    p = DATA_DIR / 'swap_static.json'
+    if not p.exists():
+        return {}
+    return json.loads(p.read_text())
 
 
 def align_spread(a, b):
@@ -208,8 +201,9 @@ series['REPO_GCF_AR_T_20d_vol'] = rolling_std_of_changes(series['REPO_GCF_AR_T']
 series['REPO_TRI_AR_T_20d_vol'] = rolling_std_of_changes(series['REPO_TRI_AR_T'], 20)
 series['REPO_DVP_AR_OO_20d_vol'] = rolling_std_of_changes(series['REPO_DVP_AR_OO'], 20)
 
-series['USD_SWAP_10Y'] = fred_csv_series('ICERATES1100USD10Y')
-series['USD_SWAP_30Y'] = fred_csv_series('ICERATES1100USD30Y')
+static_swap = load_static_swap_series()
+series['USD_SWAP_10Y'] = static_swap.get('USD_SWAP_10Y', [])
+series['USD_SWAP_30Y'] = static_swap.get('USD_SWAP_30Y', [])
 series['SWAP_SPREAD_10Y'] = align_spread(series['USD_SWAP_10Y'], series['DGS10'])
 series['SWAP_SPREAD_30Y'] = align_spread(series['USD_SWAP_30Y'], series['DGS30'])
 series['SOFR_minus_DGS10_proxy'] = []

@@ -39,8 +39,8 @@
       {
         id: 'swap30',
         title: '30Y Swap Spread',
-        subtitle: 'ICE USD 30Y swap rate - U.S. Treasury 30Y constant maturity',
-        source: 'Source: FRED ICE Swap Rate + U.S. Treasury H15/Daily Treasury',
+        subtitle: 'Static 1Y snapshot of USD 30Y swap rate - U.S. Treasury 30Y constant maturity',
+        source: 'Source: repository static swap snapshot + U.S. Treasury H15/Daily Treasury',
         kind: 'chart',
         series: [
           ['SWAP_SPREAD_30Y', '30Y Swap Spread'],
@@ -51,8 +51,8 @@
       {
         id: 'swap10',
         title: '10Y Swap Spread',
-        subtitle: 'ICE USD 10Y swap rate - U.S. Treasury 10Y constant maturity',
-        source: 'Source: FRED ICE Swap Rate + U.S. Treasury H15/Daily Treasury',
+        subtitle: 'Static 1Y snapshot of USD 10Y swap rate - U.S. Treasury 10Y constant maturity',
+        source: 'Source: repository static swap snapshot + U.S. Treasury H15/Daily Treasury',
         kind: 'chart',
         series: [
           ['SWAP_SPREAD_10Y', '10Y Swap Spread'],
@@ -135,7 +135,7 @@
     }
 
     function render(data) {
-      document.getElementById('status').innerHTML = '<span class="warn">已删除其他冗余图，只保留你指定的四项。10Y/30Y swap spread 现接入 FRED 的 ICE USD swap rate，与 Treasury 10Y/30Y 直接相减；若上游偶发超时，重新触发 workflow 即可刷新。</span>'; 
+      document.getElementById('status').innerHTML = '<span class="warn">已删除其他冗余图，只保留你指定的四项。10Y/30Y swap spread 当前使用仓库内维护的近一年静态 swap rate 快照，与 Treasury 10Y/30Y 直接相减；这样页面稳定，不再受上游超时影响。</span>'; 
       chartDefs.forEach(def => {
         const chart = echarts.init(document.getElementById(def.id));
         const series = def.series.map(([key, label]) => ({ name: label, data: toPairs(filterLastYear(data[key])) }));
