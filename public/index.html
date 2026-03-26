@@ -19,7 +19,7 @@
 <body>
   <div class="wrap">
     <h1>Rates & Liquidity Dashboard</h1>
-    <p>Public-data first. Includes SOFR / TGCR / BGCR / Treasury rates and derived volatility proxies.</p>
+    <p>Public-data first. Includes SOFR / TGCR / BGCR, latest reference-rate volumes, Treasury 10Y/30Y, and derived volatility proxies.</p>
     <div class="grid">
       <div class="card"><div id="c1" class="chart"></div></div>
       <div class="card"><div id="c2" class="chart"></div></div>
@@ -51,7 +51,9 @@
           { name: 'BGCR', data: toPairs(data.BGCR || []) },
         ]],
         ['c2', 'TGCR Volume', [
-          { name: 'TGCR Volume', data: toPairs(data.TGCRVOLUME || []) },
+          { name: 'SOFR Volume (latest point)', data: toPairs(data.SOFRVOLUME || []) },
+          { name: 'TGCR Volume (latest point)', data: toPairs(data.TGCRVOLUME || []) },
+          { name: 'BGCR Volume (latest point)', data: toPairs(data.BGCRVOLUME || []) },
         ]],
         ['c3', '10Y / 30Y Treasury', [
           { name: 'DGS10', data: toPairs(data.DGS10 || []) },
@@ -73,7 +75,7 @@
         if (series.length) chart.setOption(lineOption(title, series));
         else chart.setOption({
           title: { text: title, textStyle: { color: '#e6edf3' } },
-          graphic: [{ type: 'text', left: 'center', top: 'middle', style: { fill: '#9fb0c3', text: 'Next step: wire true 10Y/30Y swap rates and a long-end liquidity proxy dataset.', fontSize: 18, width: 480, overflow: 'break' } }]
+          graphic: [{ type: 'text', left: 'center', top: 'middle', style: { fill: '#9fb0c3', text: 'Next step: wire true 10Y/30Y swap rates and a public long-end liquidity proxy dataset.', fontSize: 18, width: 480, overflow: 'break' } }]
         });
         window.addEventListener('resize', () => chart.resize());
       });

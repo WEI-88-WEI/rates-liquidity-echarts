@@ -1,49 +1,57 @@
-import csv, json, math, subprocess, time
+import csv, io, json, math, requests
 from pathlib import Path
+from datetime import date
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / 'data'
 OUT = DATA_DIR / 'combined.json'
+START = '2025-01-01'
+END = '2026-03-26'
+HEADERS = {'User-Agent': 'Mozilla/5.0'}
 
-SERIES = {
-    'SOFR': 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=SOFR',
-    'TGCR': 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=TGCR',
-    'TGCRVOLUME': 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=TGCRVOLUME',
-    'BGCR': 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=BGCR',
-    'DGS10': 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10',
-    'DGS30': 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS30',
-}
 
-def fetch_csv(url):
-    last = None
-    for i in range(4):
-        try:
-            res = subprocess.run([
-                'curl','-L','--fail','--silent','--show-error',
-                '--max-time','45',
-                '--http1.1',
-                '-A','Mozilla/5.0',
-                url
-            ], capture_output=True, text=True, check=True)
-            return res.stdout
-        except Exception as e:
-            last = e
-            time.sleep(2 * (i + 1))
-    raise last
+def nyfed_series(name):
+    u = f'https://markets.newyorkfed.org/api/rates/secured/{name}/search.json?startDate={START}&endDate={END}&type=rate'
+    r = requests.get(u, timeout=30, headers=HEADERS)
+    r.raise_for_status()
+    rows = r.json()['refRates']
+    out = []
+    for x in rows:
+        out.append({'date': x['effectiveDate'], 'value': float(x['percentRate'])})
+    out.sort(key=lambda x: x['date'])
+    return out
 
-def parse_fred(text, name):
-    rows = list(csv.DictReader(text.splitlines()))
+
+def nyfed_last_volume(name):
+    u = f'https://markets.newyorkfed.org/api/rates/secured/{name}/last/1.json'
+    r = requests.get(u, timeout=30, headers=HEADERS)
+    r.raise_for_status()
+    rows = r.json()['refRates']
+    out = []
+    for x in rows:
+        if 'volumeInBillions' in x:
+            out.append({'date': x['effectiveDate'], 'value': float(x['volumeInBillions'])})
+    return out
+
+
+def treasury_year(year):
+    u = f'https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{year}/all?type=daily_treasury_yield_curve&field_tdr_date_value={year}&page&_format=csv'
+    r = requests.get(u, timeout=30, headers=HEADERS)
+    r.raise_for_status()
+    return r.text
+
+
+def parse_treasury(text, col):
+    rows = list(csv.DictReader(io.StringIO(text)))
     out = []
     for row in rows:
-        date_key = row.get('DATE') or row.get('observation_date')
-        v = row.get(name)
-        if not v or v == '.':
+        v = row.get(col)
+        if not v:
             continue
-        try:
-            out.append({'date': row.get('DATE') or row.get('observation_date'), 'value': float(v)})
-        except Exception:
-            pass
+        mm, dd, yyyy = row['Date'].split('/')
+        out.append({'date': f'{yyyy}-{mm.zfill(2)}-{dd.zfill(2)}', 'value': float(v)})
     return out
+
 
 def rolling_std_of_changes(series, win):
     vals = [x['value'] for x in series]
@@ -63,25 +71,39 @@ def rolling_std_of_changes(series, win):
         out.append({'date': dates[i], 'value': math.sqrt(var)})
     return out
 
-def spread(a, b):
-    bm = {x['date']: x['value'] for x in b}
-    out = []
-    for x in a:
-        y = bm.get(x['date'])
-        if y is not None:
-            out.append({'date': x['date'], 'value': x['value'] - y})
-    return out
+
+def merge_years(col):
+    merged = []
+    for y in [2025, 2026]:
+        merged.extend(parse_treasury(treasury_year(y), col))
+    merged.sort(key=lambda x: x['date'])
+    return merged
 
 series = {}
-for name, url in SERIES.items():
-    text = fetch_csv(url)
-    series[name] = parse_fred(text, name)
-
-series['SOFR_minus_DGS10_proxy'] = spread(series['SOFR'], series['DGS10'])
-series['SOFR_minus_DGS30_proxy'] = spread(series['SOFR'], series['DGS30'])
+series['SOFR'] = nyfed_series('sofr')
+series['TGCR'] = nyfed_series('tgcr')
+series['BGCR'] = nyfed_series('bgcr')
+series['SOFRVOLUME'] = nyfed_last_volume('sofr')
+series['TGCRVOLUME'] = nyfed_last_volume('tgcr')
+series['BGCRVOLUME'] = nyfed_last_volume('bgcr')
+series['DGS10'] = merge_years('10 Yr')
+series['DGS30'] = merge_years('30 Yr')
 series['SOFR_20d_vol'] = rolling_std_of_changes(series['SOFR'], 20)
 series['TGCR_20d_vol'] = rolling_std_of_changes(series['TGCR'], 20)
 series['BGCR_20d_vol'] = rolling_std_of_changes(series['BGCR'], 20)
+series['SOFR_minus_DGS10_proxy'] = []
+series['SOFR_minus_DGS30_proxy'] = []
 
-OUT.write_text(json.dumps(series, ensure_ascii=False))
+m10 = {x['date']: x['value'] for x in series['DGS10']}
+m30 = {x['date']: x['value'] for x in series['DGS30']}
+for x in series['SOFR']:
+    d = x['date']
+    if d in m10:
+        series['SOFR_minus_DGS10_proxy'].append({'date': d, 'value': x['value'] - m10[d]})
+    if d in m30:
+        series['SOFR_minus_DGS30_proxy'].append({'date': d, 'value': x['value'] - m30[d]})
+
+OUT.write_text(json.dumps(series, ensure_ascii=False, indent=2))
 print(f'wrote {OUT}')
+for k,v in series.items():
+    print(k, len(v))
