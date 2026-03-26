@@ -39,16 +39,26 @@
       {
         id: 'swap30',
         title: '30Y Swap Spread',
-        subtitle: '当前仍为占位状态，等待稳定公开的 30Y swap rate 源接入',
-        source: 'Wanted source: public 30Y swap rate + U.S. Treasury 30Y',
-        kind: 'placeholder'
+        subtitle: 'ICE USD 30Y swap rate - U.S. Treasury 30Y constant maturity',
+        source: 'Source: FRED ICE Swap Rate + U.S. Treasury H15/Daily Treasury',
+        kind: 'chart',
+        series: [
+          ['SWAP_SPREAD_30Y', '30Y Swap Spread'],
+          ['USD_SWAP_30Y', 'USD 30Y Swap Rate'],
+          ['DGS30', 'UST 30Y'],
+        ]
       },
       {
         id: 'swap10',
         title: '10Y Swap Spread',
-        subtitle: '当前仍为占位状态，等待稳定公开的 10Y swap rate 源接入',
-        source: 'Wanted source: public 10Y swap rate + U.S. Treasury 10Y',
-        kind: 'placeholder'
+        subtitle: 'ICE USD 10Y swap rate - U.S. Treasury 10Y constant maturity',
+        source: 'Source: FRED ICE Swap Rate + U.S. Treasury H15/Daily Treasury',
+        kind: 'chart',
+        series: [
+          ['SWAP_SPREAD_10Y', '10Y Swap Spread'],
+          ['USD_SWAP_10Y', 'USD 10Y Swap Rate'],
+          ['DGS10', 'UST 10Y'],
+        ]
       },
       {
         id: 'vol',
@@ -125,25 +135,11 @@
     }
 
     function render(data) {
-      document.getElementById('status').innerHTML = '<span class="warn">已删除其他冗余图，只保留你指定的四项。SOFR / TGCR / repo 这一项现改为直接展示原始利率序列，不再额外计算波动。10Y/30Y swap spread 还在等稳定公开 swap rate 数据源，所以目前是占位卡片。</span>'; 
+      document.getElementById('status').innerHTML = '<span class="warn">已删除其他冗余图，只保留你指定的四项。10Y/30Y swap spread 现接入 FRED 的 ICE USD swap rate，与 Treasury 10Y/30Y 直接相减；若上游偶发超时，重新触发 workflow 即可刷新。</span>'; 
       chartDefs.forEach(def => {
         const chart = echarts.init(document.getElementById(def.id));
-        if (def.kind === 'placeholder') {
-          chart.setOption({
-            graphic: [{
-              type: 'text', left: 'center', top: 'middle',
-              style: {
-                text: def.title + '\n\nWaiting for stable public swap-rate source',
-                fill: '#9fb0c3',
-                fontSize: 18,
-                textAlign: 'center'
-              }
-            }]
-          });
-        } else {
-          const series = def.series.map(([key, label]) => ({ name: label, data: toPairs(filterLastYear(data[key])) }));
-          chart.setOption(lineOption(def.title, series));
-        }
+        const series = def.series.map(([key, label]) => ({ name: label, data: toPairs(filterLastYear(data[key])) }));
+        chart.setOption(lineOption(def.title, series));
         window.addEventListener('resize', () => chart.resize());
       });
     }

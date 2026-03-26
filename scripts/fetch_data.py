@@ -1,4 +1,4 @@
-import csv, io, json, math, os, tempfile, re
+import csv, io, json, math, os, tempfile, re, time
 from pathlib import Path
 
 import requests
@@ -10,13 +10,28 @@ OUT = DATA_DIR / 'combined.json'
 START = '2025-01-01'
 END = '2026-03-26'
 HEADERS = {'User-Agent': 'Mozilla/5.0'}
+SESSION = requests.Session()
+SESSION.headers.update(HEADERS)
+
+
+def get_with_retries(url, *, timeout=30, attempts=4, sleep=2, stream=False):
+    last_err = None
+    for i in range(attempts):
+        try:
+            r = SESSION.get(url, timeout=timeout, stream=stream)
+            r.raise_for_status()
+            return r
+        except requests.RequestException as e:
+            last_err = e
+            if i == attempts - 1:
+                raise
+            time.sleep(sleep * (i + 1))
+    raise last_err
 
 
 def treasury_year(year):
     u = f'https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{year}/all?type=daily_treasury_yield_curve&field_tdr_date_value={year}&page&_format=csv'
-    r = requests.get(u, timeout=30, headers=HEADERS)
-    r.raise_for_status()
-    return r.text
+    return get_with_retries(u, timeout=30).text
 
 
 def parse_treasury(text, col):
@@ -37,6 +52,30 @@ def merge_years(col):
         merged.extend(parse_treasury(treasury_year(y), col))
     merged.sort(key=lambda x: x['date'])
     return merged
+
+
+def fred_csv_series(series_id, start=START, end=END):
+    u = f'https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}&cosd={start}&coed={end}'
+    text = get_with_retries(u, timeout=60).text
+    rows = list(csv.DictReader(io.StringIO(text)))
+    out = []
+    for row in rows:
+        d = row.get('DATE')
+        v = row.get(series_id)
+        if not d or v in (None, '', '.'):
+            continue
+        out.append({'date': d, 'value': float(v)})
+    return out
+
+
+def align_spread(a, b):
+    mb = {x['date']: x['value'] for x in b}
+    out = []
+    for x in a:
+        d = x['date']
+        if d in mb:
+            out.append({'date': d, 'value': x['value'] - mb[d]})
+    return out
 
 
 def rolling_std_of_changes(series, win):
@@ -60,9 +99,7 @@ def rolling_std_of_changes(series, win):
 
 def dataset_timeseries(name):
     u = f'https://data.financialresearch.gov/v1/series/dataset?dataset={name}'
-    r = requests.get(u, timeout=90, headers=HEADERS)
-    r.raise_for_status()
-    return r.json()['timeseries']
+    return get_with_retries(u, timeout=90).json()['timeseries']
 
 
 def dataset_series(dataset, mnemonic, start=START, end=END):
@@ -98,8 +135,11 @@ def frb_longend_proxy_2023():
         return 2000 + int(m.group(1)) >= 2040
     by = {}
     for u in files:
-        r = requests.get(u, timeout=40, headers=HEADERS)
-        if r.status_code != 200 or 'excel' not in (r.headers.get('content-type') or '').lower():
+        try:
+            r = get_with_retries(u, timeout=40)
+        except requests.RequestException:
+            continue
+        if 'excel' not in (r.headers.get('content-type') or '').lower():
             continue
         fd, path = tempfile.mkstemp(suffix='.xls')
         os.write(fd, r.content)
@@ -168,6 +208,10 @@ series['REPO_GCF_AR_T_20d_vol'] = rolling_std_of_changes(series['REPO_GCF_AR_T']
 series['REPO_TRI_AR_T_20d_vol'] = rolling_std_of_changes(series['REPO_TRI_AR_T'], 20)
 series['REPO_DVP_AR_OO_20d_vol'] = rolling_std_of_changes(series['REPO_DVP_AR_OO'], 20)
 
+series['USD_SWAP_10Y'] = fred_csv_series('ICERATES1100USD10Y')
+series['USD_SWAP_30Y'] = fred_csv_series('ICERATES1100USD30Y')
+series['SWAP_SPREAD_10Y'] = align_spread(series['USD_SWAP_10Y'], series['DGS10'])
+series['SWAP_SPREAD_30Y'] = align_spread(series['USD_SWAP_30Y'], series['DGS30'])
 series['SOFR_minus_DGS10_proxy'] = []
 series['SOFR_minus_DGS30_proxy'] = []
 m10 = {x['date']: x['value'] for x in series['DGS10']}
