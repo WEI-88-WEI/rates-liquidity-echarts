@@ -1,6 +1,5 @@
 import csv, io, json, math, requests
 from pathlib import Path
-from datetime import date
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / 'data'
@@ -15,9 +14,7 @@ def nyfed_series(name):
     r = requests.get(u, timeout=30, headers=HEADERS)
     r.raise_for_status()
     rows = r.json()['refRates']
-    out = []
-    for x in rows:
-        out.append({'date': x['effectiveDate'], 'value': float(x['percentRate'])})
+    out = [{'date': x['effectiveDate'], 'value': float(x['percentRate'])} for x in rows]
     out.sort(key=lambda x: x['date'])
     return out
 
@@ -53,31 +50,54 @@ def parse_treasury(text, col):
     return out
 
 
-def rolling_std_of_changes(series, win):
-    vals = [x['value'] for x in series]
-    dates = [x['date'] for x in series]
-    out = []
-    diffs = [None]
-    for i in range(1, len(vals)):
-        diffs.append(vals[i]-vals[i-1])
-    for i in range(len(vals)):
-        if i < win or diffs[i] is None:
-            continue
-        w = [x for x in diffs[i-win+1:i+1] if x is not None]
-        if len(w) < win:
-            continue
-        mean = sum(w)/len(w)
-        var = sum((x-mean)**2 for x in w)/len(w)
-        out.append({'date': dates[i], 'value': math.sqrt(var)})
-    return out
-
-
 def merge_years(col):
     merged = []
     for y in [2025, 2026]:
         merged.extend(parse_treasury(treasury_year(y), col))
     merged.sort(key=lambda x: x['date'])
     return merged
+
+
+def rolling_std_of_changes(series, win):
+    vals = [x['value'] for x in series]
+    dates = [x['date'] for x in series]
+    out = []
+    diffs = [None]
+    for i in range(1, len(vals)):
+        diffs.append(vals[i] - vals[i - 1])
+    for i in range(len(vals)):
+        if i < win or diffs[i] is None:
+            continue
+        w = [x for x in diffs[i - win + 1:i + 1] if x is not None]
+        if len(w) < win:
+            continue
+        mean = sum(w) / len(w)
+        var = sum((x - mean) ** 2 for x in w) / len(w)
+        out.append({'date': dates[i], 'value': math.sqrt(var)})
+    return out
+
+
+def ofr_repo_series(mnemonic, start=START, end=END):
+    u = 'https://data.financialresearch.gov/v1/series/dataset?dataset=repo'
+    r = requests.get(u, timeout=90, headers=HEADERS)
+    r.raise_for_status()
+    data = r.json()['timeseries'][mnemonic]['timeseries']['aggregation']
+    out = []
+    for d, v in data:
+        if d < start or d > end or v is None:
+            continue
+        out.append({'date': d, 'value': float(v)})
+    return out
+
+
+repo_mnemonics = {
+    'REPO_GCF_AR_T': 'REPO-GCF_AR_T-F',
+    'REPO_GCF_TV_T': 'REPO-GCF_TV_T-F',
+    'REPO_TRI_AR_T': 'REPO-TRI_AR_T-F',
+    'REPO_TRI_TV_T': 'REPO-TRI_TV_T-F',
+    'REPO_DVP_AR_OO': 'REPO-DVP_AR_OO-F',
+    'REPO_DVP_TV_OO': 'REPO-DVP_TV_OO-F',
+}
 
 series = {}
 series['SOFR'] = nyfed_series('sofr')
@@ -88,12 +108,18 @@ series['TGCRVOLUME'] = nyfed_last_volume('tgcr')
 series['BGCRVOLUME'] = nyfed_last_volume('bgcr')
 series['DGS10'] = merge_years('10 Yr')
 series['DGS30'] = merge_years('30 Yr')
+for out_name, mnemonic in repo_mnemonics.items():
+    series[out_name] = ofr_repo_series(mnemonic)
+
 series['SOFR_20d_vol'] = rolling_std_of_changes(series['SOFR'], 20)
 series['TGCR_20d_vol'] = rolling_std_of_changes(series['TGCR'], 20)
 series['BGCR_20d_vol'] = rolling_std_of_changes(series['BGCR'], 20)
+series['REPO_GCF_AR_T_20d_vol'] = rolling_std_of_changes(series['REPO_GCF_AR_T'], 20)
+series['REPO_TRI_AR_T_20d_vol'] = rolling_std_of_changes(series['REPO_TRI_AR_T'], 20)
+series['REPO_DVP_AR_OO_20d_vol'] = rolling_std_of_changes(series['REPO_DVP_AR_OO'], 20)
+
 series['SOFR_minus_DGS10_proxy'] = []
 series['SOFR_minus_DGS30_proxy'] = []
-
 m10 = {x['date']: x['value'] for x in series['DGS10']}
 m30 = {x['date']: x['value'] for x in series['DGS30']}
 for x in series['SOFR']:
@@ -105,5 +131,5 @@ for x in series['SOFR']:
 
 OUT.write_text(json.dumps(series, ensure_ascii=False, indent=2))
 print(f'wrote {OUT}')
-for k,v in series.items():
+for k, v in series.items():
     print(k, len(v))

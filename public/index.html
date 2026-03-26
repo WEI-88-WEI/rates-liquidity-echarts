@@ -19,7 +19,7 @@
 <body>
   <div class="wrap">
     <h1>Rates & Liquidity Dashboard</h1>
-    <p>Public-data first. Includes SOFR / TGCR / BGCR, latest reference-rate volumes, Treasury 10Y/30Y, and derived volatility proxies.</p>
+    <p>Public-data first. Includes NY Fed secured rates, OFR repo series, Treasury 10Y/30Y, and derived volatility / spread proxies.</p>
     <div class="grid">
       <div class="card"><div id="c1" class="chart"></div></div>
       <div class="card"><div id="c2" class="chart"></div></div>
@@ -27,6 +27,8 @@
       <div class="card"><div id="c4" class="chart"></div></div>
       <div class="card"><div id="c5" class="chart"></div></div>
       <div class="card"><div id="c6" class="chart"></div></div>
+      <div class="card"><div id="c7" class="chart"></div></div>
+      <div class="card"><div id="c8" class="chart"></div></div>
     </div>
   </div>
   <script>
@@ -68,7 +70,21 @@
           { name: 'SOFR - DGS10 proxy', data: toPairs(data.SOFR_minus_DGS10_proxy || []) },
           { name: 'SOFR - DGS30 proxy', data: toPairs(data.SOFR_minus_DGS30_proxy || []) },
         ]],
-        ['c6', 'Notes', []],
+        ['c6', 'OFR Repo Rates', [
+          { name: 'GCF Treasury Rate', data: toPairs(data.REPO_GCF_AR_T || []) },
+          { name: 'Tri-Party Treasury Rate', data: toPairs(data.REPO_TRI_AR_T || []) },
+          { name: 'DVP Overnight Rate', data: toPairs(data.REPO_DVP_AR_OO || []) },
+        ]],
+        ['c7', 'OFR Repo Volumes', [
+          { name: 'GCF Treasury Txn Vol', data: toPairs(data.REPO_GCF_TV_T || []) },
+          { name: 'Tri-Party Treasury Txn Vol', data: toPairs(data.REPO_TRI_TV_T || []) },
+          { name: 'DVP Overnight Txn Vol', data: toPairs(data.REPO_DVP_TV_OO || []) },
+        ]],
+        ['c8', 'Repo Rate Volatility Proxies', [
+          { name: 'GCF Treasury 20d vol', data: toPairs(data.REPO_GCF_AR_T_20d_vol || []) },
+          { name: 'Tri-Party Treasury 20d vol', data: toPairs(data.REPO_TRI_AR_T_20d_vol || []) },
+          { name: 'DVP Overnight 20d vol', data: toPairs(data.REPO_DVP_AR_OO_20d_vol || []) },
+        ]],
       ];
       charts.forEach(([id, title, series]) => {
         const chart = echarts.init(document.getElementById(id));

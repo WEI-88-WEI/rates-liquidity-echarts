@@ -9,6 +9,7 @@ Historical rates/liquidity dashboard built with public data and ECharts.
 - BGCR
 - DGS10 / DGS30
 - SOFR-Treasury proxy spreads (placeholder until richer swap source is wired)
+- OFR repo market series: GCF Treasury rate/volume, Tri-Party Treasury rate/volume, DVP overnight rate/volume
 
 ## Run
 Open `public/index.html` in a browser after generating `data/combined.json`.
