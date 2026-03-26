@@ -10635,6 +10635,10 @@
       "value": 3235947550764.12
     }
   ],
+  "FRBNY_LONGEND_PURCHASES": [],
+  "FRBNY_LONGEND_SALES": [],
+  "FRBNY_LONGEND_NET": [],
+  "FRBNY_LONGEND_GROSS": [],
   "SOFR_20d_vol": [
     {
       "date": "2025-01-31",
