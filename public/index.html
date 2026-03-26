@@ -7,13 +7,9 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
   <style>
     body { font-family: Inter, system-ui, sans-serif; margin: 0; background: #0b1020; color: #e6edf3; }
-    .wrap { max-width: 1500px; margin: 0 auto; padding: 24px; }
+    .wrap { max-width: 1400px; margin: 0 auto; padding: 24px; }
     h1 { margin: 0 0 8px; }
-    p, li { color: #9fb0c3; }
-    .top { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; margin-bottom: 18px; }
-    .meta { max-width: 980px; }
-    .pillbar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-    .pill { font-size: 12px; padding: 6px 10px; border: 1px solid #31415f; border-radius: 999px; color: #c9d4df; }
+    p { color: #9fb0c3; }
     .card { background: #121a2b; border: 1px solid #22304a; border-radius: 16px; padding: 14px; }
     .summary { margin-bottom: 16px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -22,168 +18,68 @@
     .chart-title { font-size: 15px; font-weight: 700; color: #e6edf3; }
     .chart-sub { font-size: 12px; color: #90a4b8; margin-top: 4px; }
     .source { font-size: 11px; color: #8cc8ff; white-space: nowrap; }
-    .chart { width: 100%; height: 330px; }
+    .chart { width: 100%; height: 340px; }
     .small { font-size: 12px; color: #7f91a6; }
-    .error { white-space: pre-wrap; color: #ffb4b4; }
+    .warn { color: #ffcf85; }
     a { color: #8cc8ff; }
     @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="top">
-      <div class="meta">
-        <h1>Rates & Liquidity Dashboard</h1>
-        <p>先把现有可公开稳定拿到的数据全部展示清楚：NY Fed secured rates、OFR repo market series、U.S. Treasury yield curve，以及基于这些序列构造的波动和 proxy spread。后续继续补 swap spread 与 long-end liquidity proxy。</p>
-        <div class="pillbar">
-          <div class="pill">NY Fed secured rates API</div>
-          <div class="pill">OFR repo dataset API</div>
-          <div class="pill">U.S. Treasury daily yield CSV</div>
-          <div class="pill">GitHub Pages auto deploy</div>
-        </div>
-      </div>
-      <div class="card summary" style="min-width:300px; max-width:380px;">
-        <div id="summary">Loading summary…</div>
-      </div>
-    </div>
+    <h1>Rates & Liquidity Dashboard</h1>
+    <p>只保留当前要看的四条主线：<strong>30Y swap spread</strong>、<strong>10Y swap spread</strong>、<strong>SOFR / TGCR / repo 波动</strong>、<strong>长端 bid-ask / market depth 代理</strong>。</p>
 
-    <div id="status" class="card summary small">Loading data…</div>
+    <div id="status" class="card summary small">Loading…</div>
 
     <div class="grid" id="grid"></div>
   </div>
   <script>
     const chartDefs = [
       {
-        id: 'c1',
-        title: 'Secured Rates',
-        subtitle: 'SOFR / TGCR / BGCR 日度水平',
-        source: 'Source: New York Fed secured rates API',
-        series: [
-          ['SOFR', 'SOFR'],
-          ['TGCR', 'TGCR'],
-          ['BGCR', 'BGCR'],
-        ]
+        id: 'swap30',
+        title: '30Y Swap Spread',
+        subtitle: '当前仍为占位状态，等待稳定公开的 30Y swap rate 源接入',
+        source: 'Wanted source: public 30Y swap rate + U.S. Treasury 30Y',
+        kind: 'placeholder'
       },
       {
-        id: 'c1b',
-        title: 'SOFR Distribution Bands',
-        subtitle: 'SOFR 与 1/25/75/99 percentile band',
-        source: 'Source: OFR mirror of New York Fed reference rates dataset',
-        series: [
-          ['SOFR_P1', 'SOFR P1'],
-          ['SOFR_P25', 'SOFR P25'],
-          ['SOFR', 'SOFR'],
-          ['SOFR_P75', 'SOFR P75'],
-          ['SOFR_P99', 'SOFR P99'],
-        ]
+        id: 'swap10',
+        title: '10Y Swap Spread',
+        subtitle: '当前仍为占位状态，等待稳定公开的 10Y swap rate 源接入',
+        source: 'Wanted source: public 10Y swap rate + U.S. Treasury 10Y',
+        kind: 'placeholder'
       },
       {
-        id: 'c2',
-        title: 'Reference-Rate Volumes',
-        subtitle: 'SOFR / TGCR / BGCR 的 underlying volume 历史'
-,
-        source: 'Source: New York Fed secured rates API',
-        series: [
-          ['SOFRVOLUME', 'SOFR Volume'],
-          ['TGCRVOLUME', 'TGCR Volume'],
-          ['BGCRVOLUME', 'BGCR Volume'],
-        ]
-      },
-      {
-        id: 'c2b',
-        title: 'TGCR / BGCR Distribution Bands',
-        subtitle: 'TGCR / BGCR 与分位区间',
-        source: 'Source: OFR mirror of New York Fed reference rates dataset',
-        series: [
-          ['TGCR_P25', 'TGCR P25'],
-          ['TGCR', 'TGCR'],
-          ['TGCR_P75', 'TGCR P75'],
-          ['BGCR_P25', 'BGCR P25'],
-          ['BGCR', 'BGCR'],
-          ['BGCR_P75', 'BGCR P75'],
-        ]
-      },
-      {
-        id: 'c3',
-        title: 'Treasury Yields',
-        subtitle: '美国国债 10Y / 30Y 日度收益率',
-        source: 'Source: U.S. Treasury daily yield curve CSV',
-        series: [
-          ['DGS10', '10Y Treasury'],
-          ['DGS30', '30Y Treasury'],
-        ]
-      },
-      {
-        id: 'c4',
-        title: '20d Realized Vol of Secured Rates',
-        subtitle: '基于日度 level change 计算的 20d rolling volatility',
-        source: 'Source: Derived from New York Fed secured rates API',
+        id: 'vol',
+        title: 'SOFR / TGCR / Repo Volatility',
+        subtitle: '已接上 SOFR / TGCR / BGCR 与 repo rate 的 20d rolling volatility',
+        source: 'Source: NY Fed + OFR repo dataset, derived 20d vol',
+        kind: 'chart',
         series: [
           ['SOFR_20d_vol', 'SOFR 20d vol'],
           ['TGCR_20d_vol', 'TGCR 20d vol'],
-          ['BGCR_20d_vol', 'BGCR 20d vol'],
+          ['REPO_GCF_AR_T_20d_vol', 'Repo GCF Treasury 20d vol'],
+          ['REPO_DVP_AR_OO_20d_vol', 'Repo DVP O/N 20d vol'],
         ]
       },
       {
-        id: 'c5',
-        title: 'Treasury Proxy Spreads',
-        subtitle: '当前是 SOFR 减 Treasury yield 的 proxy，不是真 swap spread',
-        source: 'Source: Derived from New York Fed + U.S. Treasury',
-        series: [
-          ['SOFR_minus_DGS10_proxy', 'SOFR - 10Y Treasury proxy'],
-          ['SOFR_minus_DGS30_proxy', 'SOFR - 30Y Treasury proxy'],
-        ]
-      },
-      {
-        id: 'c6',
-        title: 'OFR Repo Rates',
-        subtitle: 'GCF Treasury / Tri-Party Treasury / DVP Overnight',
-        source: 'Source: OFR U.S. Repo Markets dataset API',
-        series: [
-          ['REPO_GCF_AR_T', 'GCF Treasury Rate'],
-          ['REPO_TRI_AR_T', 'Tri-Party Treasury Rate'],
-          ['REPO_DVP_AR_OO', 'DVP Overnight Rate'],
-        ]
-      },
-      {
-        id: 'c7',
-        title: 'OFR Repo Transaction Volumes',
-        subtitle: 'Treasury collateral 与 DVP overnight 对应交易量',
-        source: 'Source: OFR U.S. Repo Markets dataset API',
-        series: [
-          ['REPO_GCF_TV_T', 'GCF Treasury Txn Vol'],
-          ['REPO_TRI_TV_T', 'Tri-Party Treasury Txn Vol'],
-          ['REPO_DVP_TV_OO', 'DVP Overnight Txn Vol'],
-        ]
-      },
-      {
-        id: 'c8a',
-        title: 'FRBNY Long-End Official Flow Proxy (2023)',
-        subtitle: '纽约联储 Treasury operation files 中 2040+ 到期券种的买卖流量',
+        id: 'liq',
+        title: 'Long-End Liquidity Proxy',
+        subtitle: '暂以 FRBNY 2023 long-end official flow proxy 代替真实 bid-ask / depth',
         source: 'Source: FRBNY historical Treasury operation xls files (2023 only)',
+        kind: 'chart',
         series: [
-          ['FRBNY_LONGEND_PURCHASES_2023', 'Long-end Purchases'],
-          ['FRBNY_LONGEND_SALES_2023', 'Long-end Sales'],
           ['FRBNY_LONGEND_GROSS_2023', 'Long-end Gross'],
           ['FRBNY_LONGEND_NET_2023', 'Long-end Net'],
-        ]
-      },
-      {
-        id: 'c8',
-        title: 'OFR Repo Volatility Proxies',
-        subtitle: 'repo rate 的 20d rolling volatility',
-        source: 'Source: Derived from OFR U.S. Repo Markets dataset API',
-        series: [
-          ['REPO_GCF_AR_T_20d_vol', 'GCF Treasury 20d vol'],
-          ['REPO_TRI_AR_T_20d_vol', 'Tri-Party Treasury 20d vol'],
-          ['REPO_DVP_AR_OO_20d_vol', 'DVP Overnight 20d vol'],
+          ['FRBNY_LONGEND_PURCHASES_2023', 'Long-end Purchases'],
+          ['FRBNY_LONGEND_SALES_2023', 'Long-end Sales'],
         ]
       }
     ];
 
     function lineOption(title, seriesDefs) {
       return {
-        backgroundColor: 'transparent',
         animation: false,
         title: { text: title, left: 0, top: 0, textStyle: { color: '#e6edf3', fontSize: 15, fontWeight: 600 } },
         tooltip: { trigger: 'axis' },
@@ -202,29 +98,15 @@
       d.setUTCFullYear(d.getUTCFullYear() - 1);
       return d.toISOString().slice(0, 10);
     }
-
     function filterLastYear(arr) {
       const cutoff = cutoffDateOneYear();
       return (arr || []).filter(x => x.date >= cutoff);
     }
 
-    function lastValue(arr) { return arr && arr.length ? arr[arr.length - 1].value : null; }
-    function lastDate(arr) { return arr && arr.length ? arr[arr.length - 1].date : 'n/a'; }
-    function fmt(v, digits = 2) { return v == null ? 'n/a' : Number(v).toFixed(digits); }
-
     async function loadData() {
-      const candidates = ['./data/combined.json', 'data/combined.json', './combined.json'];
-      let lastErr = null;
-      for (const path of candidates) {
-        try {
-          const r = await fetch(path, { cache: 'no-store' });
-          if (!r.ok) throw new Error(path + ' -> ' + r.status);
-          return await r.json();
-        } catch (e) {
-          lastErr = e;
-        }
-      }
-      throw lastErr || new Error('failed to load data');
+      const r = await fetch('./data/combined.json', { cache: 'no-store' });
+      if (!r.ok) throw new Error('data load failed: ' + r.status);
+      return await r.json();
     }
 
     function buildGrid() {
@@ -243,41 +125,34 @@
       `).join('');
     }
 
-    function renderSummary(data) {
-      document.getElementById('summary').innerHTML = `
-        <div><strong>Latest snapshot</strong></div>
-        <div class="small" style="margin-top:8px; line-height:1.75;">
-          SOFR: <strong>${fmt(lastValue(data.SOFR))}%</strong><br>
-          TGCR: <strong>${fmt(lastValue(data.TGCR))}%</strong><br>
-          BGCR: <strong>${fmt(lastValue(data.BGCR))}%</strong><br>
-          10Y UST: <strong>${fmt(lastValue(data.DGS10))}%</strong><br>
-          30Y UST: <strong>${fmt(lastValue(data.DGS30))}%</strong><br>
-          OFR repo latest date: <strong>${lastDate(data.REPO_GCF_AR_T)}</strong><br>
-          Secured-rate latest date: <strong>${lastDate(data.SOFR)}</strong>
-        </div>
-      `;
-
-      document.getElementById('status').innerHTML = `Loaded datasets: secured rates, Treasury yields, OFR repo rates/volumes, volatility proxies, and Treasury spread proxies. Ongoing work: true 10Y/30Y swap spread. Long-end liquidity proxy now includes a 2023 FRBNY official flow panel.`;
-    }
-
-    function renderCharts(data) {
+    function render(data) {
+      document.getElementById('status').innerHTML = '<span class="warn">已删除其他冗余图，只保留你指定的四项。注意：10Y/30Y swap spread 还在等稳定公开 swap rate 数据源，所以目前是占位卡片，不是假图。</span>';
       chartDefs.forEach(def => {
         const chart = echarts.init(document.getElementById(def.id));
-        const series = def.series.map(([key, label]) => ({ name: label, data: toPairs(filterLastYear(data[key])) }));
-        chart.setOption(lineOption(def.title, series));
+        if (def.kind === 'placeholder') {
+          chart.setOption({
+            graphic: [{
+              type: 'text', left: 'center', top: 'middle',
+              style: {
+                text: def.title + '\n\nWaiting for stable public swap-rate source',
+                fill: '#9fb0c3',
+                fontSize: 18,
+                textAlign: 'center'
+              }
+            }]
+          });
+        } else {
+          const series = def.series.map(([key, label]) => ({ name: label, data: toPairs(filterLastYear(data[key])) }));
+          chart.setOption(lineOption(def.title, series));
+        }
         window.addEventListener('resize', () => chart.resize());
       });
     }
 
     buildGrid();
-    loadData()
-      .then(data => {
-        renderSummary(data);
-        renderCharts(data);
-      })
-      .catch(err => {
-        document.getElementById('status').innerHTML = '<div class="error">Data load failed: ' + String(err) + '\nTry refreshing in a minute after Pages redeploy finishes.</div>';
-      });
+    loadData().then(render).catch(err => {
+      document.getElementById('status').textContent = 'Load failed: ' + err;
+    });
   </script>
 </body>
 </html>
