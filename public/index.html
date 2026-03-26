@@ -52,15 +52,15 @@
       },
       {
         id: 'vol',
-        title: 'SOFR / TGCR / Repo Volatility',
-        subtitle: '已接上 SOFR / TGCR / BGCR 与 repo rate 的 20d rolling volatility',
-        source: 'Source: NY Fed + OFR repo dataset, derived 20d vol',
+        title: 'SOFR / TGCR / Repo',
+        subtitle: '直接展示 SOFR / TGCR / repo 相关利率，不再额外计算波动',
+        source: 'Source: New York Fed reference rates + OFR repo dataset',
         kind: 'chart',
         series: [
-          ['SOFR_20d_vol', 'SOFR 20d vol'],
-          ['TGCR_20d_vol', 'TGCR 20d vol'],
-          ['REPO_GCF_AR_T_20d_vol', 'Repo GCF Treasury 20d vol'],
-          ['REPO_DVP_AR_OO_20d_vol', 'Repo DVP O/N 20d vol'],
+          ['SOFR', 'SOFR'],
+          ['TGCR', 'TGCR'],
+          ['REPO_GCF_AR_T', 'Repo GCF Treasury Rate'],
+          ['REPO_DVP_AR_OO', 'Repo DVP O/N Rate'],
         ]
       },
       {
@@ -125,7 +125,7 @@
     }
 
     function render(data) {
-      document.getElementById('status').innerHTML = '<span class="warn">已删除其他冗余图，只保留你指定的四项。注意：10Y/30Y swap spread 还在等稳定公开 swap rate 数据源，所以目前是占位卡片，不是假图。</span>';
+      document.getElementById('status').innerHTML = '<span class="warn">已删除其他冗余图，只保留你指定的四项。SOFR / TGCR / repo 这一项现改为直接展示原始利率序列，不再额外计算波动。10Y/30Y swap spread 还在等稳定公开 swap rate 数据源，所以目前是占位卡片。</span>'; 
       chartDefs.forEach(def => {
         const chart = echarts.init(document.getElementById(def.id));
         if (def.kind === 'placeholder') {
