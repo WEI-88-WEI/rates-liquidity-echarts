@@ -1,0 +1,13 @@
+{
+  "SOFR": [],
+  "TGCR": [],
+  "TGCRVOLUME": [],
+  "BGCR": [],
+  "DGS10": [],
+  "DGS30": [],
+  "SOFR_20d_vol": [],
+  "TGCR_20d_vol": [],
+  "BGCR_20d_vol": [],
+  "SOFR_minus_DGS10_proxy": [],
+  "SOFR_minus_DGS30_proxy": []
+}
