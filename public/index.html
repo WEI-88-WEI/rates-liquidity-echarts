@@ -7,19 +7,43 @@
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
   <style>
     body { font-family: Inter, system-ui, sans-serif; margin: 0; background: #0b1020; color: #e6edf3; }
-    .wrap { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    .wrap { max-width: 1450px; margin: 0 auto; padding: 24px; }
     h1 { margin: 0 0 8px; }
-    p { color: #9fb0c3; }
+    p, li { color: #9fb0c3; }
+    .top { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; margin-bottom: 18px; }
+    .meta { max-width: 920px; }
+    .pillbar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .pill { font-size: 12px; padding: 6px 10px; border: 1px solid #31415f; border-radius: 999px; color: #c9d4df; }
+    .card { background: #121a2b; border: 1px solid #22304a; border-radius: 16px; padding: 14px; }
+    .summary { margin-bottom: 16px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .card { background: #121a2b; border: 1px solid #22304a; border-radius: 16px; padding: 12px; }
     .chart { width: 100%; height: 360px; }
+    .small { font-size: 12px; color: #7f91a6; }
+    .error { white-space: pre-wrap; color: #ffb4b4; }
+    a { color: #8cc8ff; }
     @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Rates & Liquidity Dashboard</h1>
-    <p>Public-data first. Includes NY Fed secured rates, OFR repo series, Treasury 10Y/30Y, and derived volatility / spread proxies.</p>
+    <div class="top">
+      <div class="meta">
+        <h1>Rates & Liquidity Dashboard</h1>
+        <p>已接上并展示：NY Fed secured rates、OFR repo market series、Treasury 10Y/30Y、波动与 proxy spread。页面优先把现有真数据展示完整，swap spread / long-end depth 后续继续补。</p>
+        <div class="pillbar">
+          <div class="pill">Source: NY Fed</div>
+          <div class="pill">Source: OFR</div>
+          <div class="pill">Source: U.S. Treasury</div>
+          <div class="pill">Pages auto deploy</div>
+        </div>
+      </div>
+      <div class="card summary" style="min-width:280px; max-width:360px;">
+        <div id="summary">Loading summary…</div>
+      </div>
+    </div>
+
+    <div id="status" class="card summary small">Loading data…</div>
+
     <div class="grid">
       <div class="card"><div id="c1" class="chart"></div></div>
       <div class="card"><div id="c2" class="chart"></div></div>
@@ -34,68 +58,123 @@
   <script>
     function lineOption(title, seriesDefs) {
       return {
-        title: { text: title, textStyle: { color: '#e6edf3' } },
+        backgroundColor: 'transparent',
+        animation: false,
+        title: { text: title, textStyle: { color: '#e6edf3', fontSize: 15 } },
         tooltip: { trigger: 'axis' },
-        legend: { textStyle: { color: '#c8d1dc' } },
-        grid: { left: 50, right: 20, top: 50, bottom: 40 },
-        xAxis: { type: 'time', axisLabel: { color: '#9fb0c3' } },
-        yAxis: { type: 'value', axisLabel: { color: '#9fb0c3' }, splitLine: { lineStyle: { color: '#22304a' } } },
-        series: seriesDefs.map(s => ({ name: s.name, type: 'line', showSymbol: false, data: s.data }))
+        legend: { top: 26, textStyle: { color: '#c8d1dc', fontSize: 11 } },
+        grid: { left: 52, right: 20, top: 74, bottom: 40 },
+        xAxis: { type: 'time', axisLabel: { color: '#9fb0c3' }, axisLine: { lineStyle: { color: '#31415f' } } },
+        yAxis: { type: 'value', axisLabel: { color: '#9fb0c3' }, axisLine: { lineStyle: { color: '#31415f' } }, splitLine: { lineStyle: { color: '#22304a' } } },
+        series: seriesDefs.map(s => ({ name: s.name, type: 'line', showSymbol: false, smooth: false, lineStyle: { width: 2 }, data: s.data }))
       }
     }
 
-    fetch('../data/combined.json').then(r => r.json()).then(data => {
-      const toPairs = arr => arr.map(x => [x.date, x.value]);
+    function toPairs(arr) {
+      return (arr || []).map(x => [x.date, x.value]);
+    }
+
+    function lastValue(arr) {
+      return arr && arr.length ? arr[arr.length - 1].value : null;
+    }
+
+    function lastDate(arr) {
+      return arr && arr.length ? arr[arr.length - 1].date : 'n/a';
+    }
+
+    function fmt(v, digits = 2) {
+      return v == null ? 'n/a' : Number(v).toFixed(digits);
+    }
+
+    async function loadData() {
+      const candidates = ['./data/combined.json', 'data/combined.json', './combined.json'];
+      let lastErr = null;
+      for (const path of candidates) {
+        try {
+          const r = await fetch(path, { cache: 'no-store' });
+          if (!r.ok) throw new Error(path + ' -> ' + r.status);
+          return await r.json();
+        } catch (e) {
+          lastErr = e;
+        }
+      }
+      throw lastErr || new Error('failed to load data');
+    }
+
+    function renderSummary(data) {
+      document.getElementById('summary').innerHTML = `
+        <div><strong>Latest snapshot</strong></div>
+        <div class="small" style="margin-top:8px; line-height:1.7;">
+          SOFR: <strong>${fmt(lastValue(data.SOFR))}%</strong><br>
+          TGCR: <strong>${fmt(lastValue(data.TGCR))}%</strong><br>
+          BGCR: <strong>${fmt(lastValue(data.BGCR))}%</strong><br>
+          10Y UST: <strong>${fmt(lastValue(data.DGS10))}%</strong><br>
+          30Y UST: <strong>${fmt(lastValue(data.DGS30))}%</strong><br>
+          Last secured-rate date: <strong>${lastDate(data.SOFR)}</strong>
+        </div>
+      `;
+
+      const status = document.getElementById('status');
+      status.innerHTML = `Loaded series: SOFR(${(data.SOFR||[]).length}), TGCR(${(data.TGCR||[]).length}), BGCR(${(data.BGCR||[]).length}), DGS10(${(data.DGS10||[]).length}), DGS30(${(data.DGS30||[]).length}), OFR repo rates/volumes, volatility proxies.`;
+    }
+
+    function renderCharts(data) {
       const charts = [
-        ['c1', 'SOFR / TGCR / BGCR', [
-          { name: 'SOFR', data: toPairs(data.SOFR || []) },
-          { name: 'TGCR', data: toPairs(data.TGCR || []) },
-          { name: 'BGCR', data: toPairs(data.BGCR || []) },
+        ['c1', 'Secured Rates', [
+          { name: 'SOFR', data: toPairs(data.SOFR) },
+          { name: 'TGCR', data: toPairs(data.TGCR) },
+          { name: 'BGCR', data: toPairs(data.BGCR) },
         ]],
-        ['c2', 'TGCR Volume', [
-          { name: 'SOFR Volume (latest point)', data: toPairs(data.SOFRVOLUME || []) },
-          { name: 'TGCR Volume (latest point)', data: toPairs(data.TGCRVOLUME || []) },
-          { name: 'BGCR Volume (latest point)', data: toPairs(data.BGCRVOLUME || []) },
+        ['c2', 'Reference-Rate Volumes', [
+          { name: 'SOFR Volume', data: toPairs(data.SOFRVOLUME) },
+          { name: 'TGCR Volume', data: toPairs(data.TGCRVOLUME) },
+          { name: 'BGCR Volume', data: toPairs(data.BGCRVOLUME) },
         ]],
-        ['c3', '10Y / 30Y Treasury', [
-          { name: 'DGS10', data: toPairs(data.DGS10 || []) },
-          { name: 'DGS30', data: toPairs(data.DGS30 || []) },
+        ['c3', 'Treasury Yields', [
+          { name: '10Y Treasury', data: toPairs(data.DGS10) },
+          { name: '30Y Treasury', data: toPairs(data.DGS30) },
         ]],
-        ['c4', '20d Realized Vol (level changes)', [
-          { name: 'SOFR 20d vol', data: toPairs(data.SOFR_20d_vol || []) },
-          { name: 'TGCR 20d vol', data: toPairs(data.TGCR_20d_vol || []) },
-          { name: 'BGCR 20d vol', data: toPairs(data.BGCR_20d_vol || []) },
+        ['c4', '20d Realized Vol of Rates', [
+          { name: 'SOFR 20d vol', data: toPairs(data.SOFR_20d_vol) },
+          { name: 'TGCR 20d vol', data: toPairs(data.TGCR_20d_vol) },
+          { name: 'BGCR 20d vol', data: toPairs(data.BGCR_20d_vol) },
         ]],
-        ['c5', 'Proxy Spread vs Treasury', [
-          { name: 'SOFR - DGS10 proxy', data: toPairs(data.SOFR_minus_DGS10_proxy || []) },
-          { name: 'SOFR - DGS30 proxy', data: toPairs(data.SOFR_minus_DGS30_proxy || []) },
+        ['c5', 'Treasury Proxy Spreads', [
+          { name: 'SOFR - 10Y Treasury', data: toPairs(data.SOFR_minus_DGS10_proxy) },
+          { name: 'SOFR - 30Y Treasury', data: toPairs(data.SOFR_minus_DGS30_proxy) },
         ]],
         ['c6', 'OFR Repo Rates', [
-          { name: 'GCF Treasury Rate', data: toPairs(data.REPO_GCF_AR_T || []) },
-          { name: 'Tri-Party Treasury Rate', data: toPairs(data.REPO_TRI_AR_T || []) },
-          { name: 'DVP Overnight Rate', data: toPairs(data.REPO_DVP_AR_OO || []) },
+          { name: 'GCF Treasury Rate', data: toPairs(data.REPO_GCF_AR_T) },
+          { name: 'Tri-Party Treasury Rate', data: toPairs(data.REPO_TRI_AR_T) },
+          { name: 'DVP Overnight Rate', data: toPairs(data.REPO_DVP_AR_OO) },
         ]],
-        ['c7', 'OFR Repo Volumes', [
-          { name: 'GCF Treasury Txn Vol', data: toPairs(data.REPO_GCF_TV_T || []) },
-          { name: 'Tri-Party Treasury Txn Vol', data: toPairs(data.REPO_TRI_TV_T || []) },
-          { name: 'DVP Overnight Txn Vol', data: toPairs(data.REPO_DVP_TV_OO || []) },
+        ['c7', 'OFR Repo Transaction Volumes', [
+          { name: 'GCF Treasury Txn Vol', data: toPairs(data.REPO_GCF_TV_T) },
+          { name: 'Tri-Party Treasury Txn Vol', data: toPairs(data.REPO_TRI_TV_T) },
+          { name: 'DVP Overnight Txn Vol', data: toPairs(data.REPO_DVP_TV_OO) },
         ]],
-        ['c8', 'Repo Rate Volatility Proxies', [
-          { name: 'GCF Treasury 20d vol', data: toPairs(data.REPO_GCF_AR_T_20d_vol || []) },
-          { name: 'Tri-Party Treasury 20d vol', data: toPairs(data.REPO_TRI_AR_T_20d_vol || []) },
-          { name: 'DVP Overnight 20d vol', data: toPairs(data.REPO_DVP_AR_OO_20d_vol || []) },
+        ['c8', 'OFR Repo Volatility Proxies', [
+          { name: 'GCF Treasury 20d vol', data: toPairs(data.REPO_GCF_AR_T_20d_vol) },
+          { name: 'Tri-Party Treasury 20d vol', data: toPairs(data.REPO_TRI_AR_T_20d_vol) },
+          { name: 'DVP Overnight 20d vol', data: toPairs(data.REPO_DVP_AR_OO_20d_vol) },
         ]],
       ];
+
       charts.forEach(([id, title, series]) => {
         const chart = echarts.init(document.getElementById(id));
-        if (series.length) chart.setOption(lineOption(title, series));
-        else chart.setOption({
-          title: { text: title, textStyle: { color: '#e6edf3' } },
-          graphic: [{ type: 'text', left: 'center', top: 'middle', style: { fill: '#9fb0c3', text: 'Next step: wire true 10Y/30Y swap rates and a public long-end liquidity proxy dataset.', fontSize: 18, width: 480, overflow: 'break' } }]
-        });
+        chart.setOption(lineOption(title, series));
         window.addEventListener('resize', () => chart.resize());
       });
-    });
+    }
+
+    loadData()
+      .then(data => {
+        renderSummary(data);
+        renderCharts(data);
+      })
+      .catch(err => {
+        document.getElementById('status').innerHTML = '<div class="error">Data load failed: ' + String(err) + '\nTry refreshing in a minute after Pages redeploy finishes.</div>';
+      });
   </script>
 </body>
 </html>
