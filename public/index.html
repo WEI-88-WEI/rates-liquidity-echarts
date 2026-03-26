@@ -11,7 +11,6 @@
     h1 { margin: 0 0 8px; }
     p { color: #9fb0c3; }
     .card { background: #121a2b; border: 1px solid #22304a; border-radius: 16px; padding: 14px; }
-    .summary { margin-bottom: 16px; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .chart-card { display: flex; flex-direction: column; gap: 10px; }
     .chart-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
@@ -29,8 +28,6 @@
   <div class="wrap">
     <h1>Rates & Liquidity Dashboard</h1>
     <p>只保留当前要看的四条主线：<strong>30Y swap spread</strong>、<strong>10Y swap spread</strong>、<strong>SOFR / TGCR / repo 波动</strong>、<strong>长端 bid-ask / market depth 代理</strong>。</p>
-
-    <div id="status" class="card summary small">Loading…</div>
 
     <div class="grid" id="grid"></div>
   </div>
@@ -135,7 +132,6 @@
     }
 
     function render(data) {
-      document.getElementById('status').innerHTML = '<span class="warn">已删除其他冗余图，只保留你指定的四项。10Y/30Y swap spread 当前使用仓库内维护的近一年静态 swap rate 快照，与 Treasury 10Y/30Y 直接相减；这样页面稳定，不再受上游超时影响。</span>'; 
       chartDefs.forEach(def => {
         const chart = echarts.init(document.getElementById(def.id));
         const series = def.series.map(([key, label]) => ({ name: label, data: toPairs(filterLastYear(data[key])) }));
@@ -146,7 +142,7 @@
 
     buildGrid();
     loadData().then(render).catch(err => {
-      document.getElementById('status').textContent = 'Load failed: ' + err;
+      console.error('Load failed:', err);
     });
   </script>
 </body>
