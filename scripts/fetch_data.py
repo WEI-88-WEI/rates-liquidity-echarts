@@ -12,28 +12,6 @@ END = '2026-03-26'
 HEADERS = {'User-Agent': 'Mozilla/5.0'}
 
 
-def nyfed_series(name):
-    u = f'https://markets.newyorkfed.org/api/rates/secured/{name}/search.json?startDate={START}&endDate={END}&type=rate'
-    r = requests.get(u, timeout=30, headers=HEADERS)
-    r.raise_for_status()
-    rows = r.json()['refRates']
-    out = [{'date': x['effectiveDate'], 'value': float(x['percentRate'])} for x in rows]
-    out.sort(key=lambda x: x['date'])
-    return out
-
-
-def nyfed_last_volume(name):
-    u = f'https://markets.newyorkfed.org/api/rates/secured/{name}/last/1.json'
-    r = requests.get(u, timeout=30, headers=HEADERS)
-    r.raise_for_status()
-    rows = r.json()['refRates']
-    out = []
-    for x in rows:
-        if 'volumeInBillions' in x:
-            out.append({'date': x['effectiveDate'], 'value': float(x['volumeInBillions'])})
-    return out
-
-
 def treasury_year(year):
     u = f'https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/{year}/all?type=daily_treasury_yield_curve&field_tdr_date_value={year}&page&_format=csv'
     r = requests.get(u, timeout=30, headers=HEADERS)
@@ -80,14 +58,14 @@ def rolling_std_of_changes(series, win):
     return out
 
 
-def ofr_repo_dataset():
-    u = 'https://data.financialresearch.gov/v1/series/dataset?dataset=repo'
+def dataset_timeseries(name):
+    u = f'https://data.financialresearch.gov/v1/series/dataset?dataset={name}'
     r = requests.get(u, timeout=90, headers=HEADERS)
     r.raise_for_status()
     return r.json()['timeseries']
 
 
-def ofr_repo_series(dataset, mnemonic, start=START, end=END):
+def dataset_series(dataset, mnemonic, start=START, end=END):
     data = dataset[mnemonic]['timeseries']['aggregation']
     out = []
     for d, v in data:
@@ -97,66 +75,41 @@ def ofr_repo_series(dataset, mnemonic, start=START, end=END):
     return out
 
 
-def frb_tsy_quarter_file(year, quarter):
-    return f'https://www.newyorkfed.org/medialibrary/media/markets/DFA/tsy_data_{year}_q{quarter}.xls'
+fnyr = dataset_timeseries('fnyr')
+repo = dataset_timeseries('repo')
 
+series = {}
+# NY Fed secured rates + percentiles + underlying volume from OFR mirror dataset
+fnyr_map = {
+    'SOFR': 'FNYR-SOFR-A',
+    'SOFR_P1': 'FNYR-SOFR_1Pctl-A',
+    'SOFR_P25': 'FNYR-SOFR_25Pctl-A',
+    'SOFR_P75': 'FNYR-SOFR_75Pctl-A',
+    'SOFR_P99': 'FNYR-SOFR_99Pctl-A',
+    'SOFR_UV': 'FNYR-SOFR_UV-A',
+    'TGCR': 'FNYR-TGCR-A',
+    'TGCR_P1': 'FNYR-TGCR_1Pctl-A',
+    'TGCR_P25': 'FNYR-TGCR_25Pctl-A',
+    'TGCR_P75': 'FNYR-TGCR_75Pctl-A',
+    'TGCR_P99': 'FNYR-TGCR_99Pctl-A',
+    'TGCR_UV': 'FNYR-TGCR_UV-A',
+    'BGCR': 'FNYR-BGCR-A',
+    'BGCR_P1': 'FNYR-BGCR_1Pctl-A',
+    'BGCR_P25': 'FNYR-BGCR_25Pctl-A',
+    'BGCR_P75': 'FNYR-BGCR_75Pctl-A',
+    'BGCR_P99': 'FNYR-BGCR_99Pctl-A',
+    'BGCR_UV': 'FNYR-BGCR_UV-A',
+}
+for out_name, mnemonic in fnyr_map.items():
+    series[out_name] = dataset_series(fnyr, mnemonic)
 
-def normalize_excel_date(cell):
-    text = str(cell).strip()
-    parts = text.split()
-    if len(parts) == 3:
-        mon, dd, yyyy = parts
-        month_map = {'Jan':'01','Feb':'02','Mar':'03','Apr':'04','May':'05','Jun':'06','Jul':'07','Aug':'08','Sep':'09','Oct':'10','Nov':'11','Dec':'12'}
-        return f"{yyyy}-{month_map[mon[:3]]}-{dd.zfill(2)}"
-    return text
+# Backward-compatible single-point aliases removed; use full UV history instead
+series['SOFRVOLUME'] = series['SOFR_UV']
+series['TGCRVOLUME'] = series['TGCR_UV']
+series['BGCRVOLUME'] = series['BGCR_UV']
 
-
-def frb_tsy_long_end_operations():
-    rows = []
-    for year, quarters in [(2025, [1,2,3,4]), (2026, [1])]:
-        for q in quarters:
-            u = frb_tsy_quarter_file(year, q)
-            r = requests.get(u, timeout=60, headers=HEADERS)
-            ctype = (r.headers.get('content-type') or '').lower()
-            if r.status_code != 200 or 'excel' not in ctype:
-                continue
-            fd, path = tempfile.mkstemp(suffix='.xls')
-            os.write(fd, r.content)
-            os.close(fd)
-            try:
-                book = xlrd.open_workbook(path)
-                sh = book.sheet_by_name('tsy data')
-                for ridx in range(4, sh.nrows):
-                    trade_date = normalize_excel_date(sh.cell_value(ridx, 0))
-                    category = str(sh.cell_value(ridx, 2)).strip()
-                    trade_amount = sh.cell_value(ridx, 3)
-                    desc = str(sh.cell_value(ridx, 5)).strip()
-                    if not desc:
-                        continue
-                    if '/30' in desc or '/31' in desc or '/32' in desc or '/33' in desc or '/34' in desc or '/35' in desc or '/36' in desc or '/37' in desc or '/38' in desc or '/39' in desc or '/40' in desc or '/41' in desc or '/42' in desc or '/43' in desc or '/44' in desc or '/45' in desc or '/46' in desc or '/47' in desc or '/48' in desc or '/49' in desc or '/50' in desc:
-                        rows.append((trade_date, category, float(trade_amount)))
-            finally:
-                os.remove(path)
-    by_date = {}
-    for d, cat, amt in rows:
-        rec = by_date.setdefault(d, {'Purchase': 0.0, 'Sale': 0.0, 'Net': 0.0, 'Gross': 0.0})
-        rec[cat] = rec.get(cat, 0.0) + amt
-        rec['Gross'] += amt
-        rec['Net'] += amt if cat == 'Purchase' else -amt
-    out_purchase = []
-    out_sale = []
-    out_net = []
-    out_gross = []
-    for d in sorted(by_date):
-        rec = by_date[d]
-        if rec['Purchase']:
-            out_purchase.append({'date': d, 'value': rec['Purchase']})
-        if rec['Sale']:
-            out_sale.append({'date': d, 'value': rec['Sale']})
-        out_net.append({'date': d, 'value': rec['Net']})
-        out_gross.append({'date': d, 'value': rec['Gross']})
-    return out_purchase, out_sale, out_net, out_gross
-
+series['DGS10'] = merge_years('10 Yr')
+series['DGS30'] = merge_years('30 Yr')
 
 repo_mnemonics = {
     'REPO_GCF_AR_T': 'REPO-GCF_AR_T-F',
@@ -166,25 +119,8 @@ repo_mnemonics = {
     'REPO_DVP_AR_OO': 'REPO-DVP_AR_OO-F',
     'REPO_DVP_TV_OO': 'REPO-DVP_TV_OO-F',
 }
-
-repo_dataset = ofr_repo_dataset()
-series = {}
-series['SOFR'] = nyfed_series('sofr')
-series['TGCR'] = nyfed_series('tgcr')
-series['BGCR'] = nyfed_series('bgcr')
-series['SOFRVOLUME'] = nyfed_last_volume('sofr')
-series['TGCRVOLUME'] = nyfed_last_volume('tgcr')
-series['BGCRVOLUME'] = nyfed_last_volume('bgcr')
-series['DGS10'] = merge_years('10 Yr')
-series['DGS30'] = merge_years('30 Yr')
 for out_name, mnemonic in repo_mnemonics.items():
-    series[out_name] = ofr_repo_series(repo_dataset, mnemonic)
-
-purchase, sale, net, gross = frb_tsy_long_end_operations()
-series['FRBNY_LONGEND_PURCHASES'] = purchase
-series['FRBNY_LONGEND_SALES'] = sale
-series['FRBNY_LONGEND_NET'] = net
-series['FRBNY_LONGEND_GROSS'] = gross
+    series[out_name] = dataset_series(repo, mnemonic)
 
 series['SOFR_20d_vol'] = rolling_std_of_changes(series['SOFR'], 20)
 series['TGCR_20d_vol'] = rolling_std_of_changes(series['TGCR'], 20)

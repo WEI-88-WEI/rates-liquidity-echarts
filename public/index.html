@@ -65,14 +65,42 @@
         ]
       },
       {
+        id: 'c1b',
+        title: 'SOFR Distribution Bands',
+        subtitle: 'SOFR 与 1/25/75/99 percentile band',
+        source: 'Source: OFR mirror of New York Fed reference rates dataset',
+        series: [
+          ['SOFR_P1', 'SOFR P1'],
+          ['SOFR_P25', 'SOFR P25'],
+          ['SOFR', 'SOFR'],
+          ['SOFR_P75', 'SOFR P75'],
+          ['SOFR_P99', 'SOFR P99'],
+        ]
+      },
+      {
         id: 'c2',
         title: 'Reference-Rate Volumes',
-        subtitle: '当前可直接取到的最新 underlying volume 点',
+        subtitle: 'SOFR / TGCR / BGCR 的 underlying volume 历史'
+,
         source: 'Source: New York Fed secured rates API',
         series: [
           ['SOFRVOLUME', 'SOFR Volume'],
           ['TGCRVOLUME', 'TGCR Volume'],
           ['BGCRVOLUME', 'BGCR Volume'],
+        ]
+      },
+      {
+        id: 'c2b',
+        title: 'TGCR / BGCR Distribution Bands',
+        subtitle: 'TGCR / BGCR 与分位区间',
+        source: 'Source: OFR mirror of New York Fed reference rates dataset',
+        series: [
+          ['TGCR_P25', 'TGCR P25'],
+          ['TGCR', 'TGCR'],
+          ['TGCR_P75', 'TGCR P75'],
+          ['BGCR_P25', 'BGCR P25'],
+          ['BGCR', 'BGCR'],
+          ['BGCR_P75', 'BGCR P75'],
         ]
       },
       {
