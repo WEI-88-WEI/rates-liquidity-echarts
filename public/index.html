@@ -157,6 +157,18 @@
         ]
       },
       {
+        id: 'c8a',
+        title: 'FRBNY Long-End Official Flow Proxy (2023)',
+        subtitle: '纽约联储 Treasury operation files 中 2040+ 到期券种的买卖流量',
+        source: 'Source: FRBNY historical Treasury operation xls files (2023 only)',
+        series: [
+          ['FRBNY_LONGEND_PURCHASES_2023', 'Long-end Purchases'],
+          ['FRBNY_LONGEND_SALES_2023', 'Long-end Sales'],
+          ['FRBNY_LONGEND_GROSS_2023', 'Long-end Gross'],
+          ['FRBNY_LONGEND_NET_2023', 'Long-end Net'],
+        ]
+      },
+      {
         id: 'c8',
         title: 'OFR Repo Volatility Proxies',
         subtitle: 'repo rate 的 20d rolling volatility',
@@ -233,7 +245,7 @@
         </div>
       `;
 
-      document.getElementById('status').innerHTML = `Loaded datasets: secured rates, Treasury yields, OFR repo rates/volumes, volatility proxies, and Treasury spread proxies. Ongoing work: true 10Y/30Y swap spread + long-end liquidity proxy.`;
+      document.getElementById('status').innerHTML = `Loaded datasets: secured rates, Treasury yields, OFR repo rates/volumes, volatility proxies, and Treasury spread proxies. Ongoing work: true 10Y/30Y swap spread. Long-end liquidity proxy now includes a 2023 FRBNY official flow panel.`;
     }
 
     function renderCharts(data) {

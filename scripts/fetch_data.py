@@ -1,4 +1,4 @@
-import csv, io, json, math, os, tempfile
+import csv, io, json, math, os, tempfile, re
 from pathlib import Path
 
 import requests
@@ -75,52 +75,91 @@ def dataset_series(dataset, mnemonic, start=START, end=END):
     return out
 
 
+def norm_excel_date(v):
+    if isinstance(v, (int, float)):
+        y, m, d, _, _, _ = xlrd.xldate_as_tuple(v, 0)
+        return f'{y:04d}-{m:02d}-{d:02d}'
+    month_map = {'Jan':'01','Feb':'02','Mar':'03','Apr':'04','May':'05','Jun':'06','Jul':'07','Aug':'08','Sep':'09','Oct':'10','Nov':'11','Dec':'12'}
+    parts = str(v).split()
+    return f"{parts[2]}-{month_map[parts[0][:3]]}-{parts[1].zfill(2)}"
+
+
+def frb_longend_proxy_2023():
+    files = [
+        'https://www.newyorkfed.org/medialibrary/media/markets/DFA/tsy_data_2023_q1.xls',
+        'https://www.newyorkfed.org/medialibrary/media/markets/DFA/tsy_data_2023_q2.xls',
+        'https://www.newyorkfed.org/medialibrary/media/markets/DFA/tsy_data_2023_q3.xls',
+        'https://www.newyorkfed.org/medialibrary/media/markets/DFA/tsy_data_2023_q4.xls',
+    ]
+    def is_longend(desc):
+        m = re.search(r'(\d{2})\s*$', desc.strip())
+        if not m:
+            return False
+        return 2000 + int(m.group(1)) >= 2040
+    by = {}
+    for u in files:
+        r = requests.get(u, timeout=40, headers=HEADERS)
+        if r.status_code != 200 or 'excel' not in (r.headers.get('content-type') or '').lower():
+            continue
+        fd, path = tempfile.mkstemp(suffix='.xls')
+        os.write(fd, r.content)
+        os.close(fd)
+        try:
+            book = xlrd.open_workbook(path)
+            sh = book.sheet_by_name('tsy data')
+            for i in range(4, sh.nrows):
+                desc = str(sh.cell_value(i, 5)).strip()
+                if not is_longend(desc):
+                    continue
+                d = norm_excel_date(sh.cell_value(i, 0))
+                cat = str(sh.cell_value(i, 2)).strip()
+                amt = float(sh.cell_value(i, 3))
+                rec = by.setdefault(d, {'Purchase': 0.0, 'Sale': 0.0, 'Gross': 0.0, 'Net': 0.0})
+                rec[cat] += amt
+                rec['Gross'] += amt
+                rec['Net'] += amt if cat == 'Purchase' else -amt
+        finally:
+            os.remove(path)
+    purchases, sales, gross, net = [], [], [], []
+    for d in sorted(by):
+        rec = by[d]
+        purchases.append({'date': d, 'value': rec['Purchase']})
+        sales.append({'date': d, 'value': rec['Sale']})
+        gross.append({'date': d, 'value': rec['Gross']})
+        net.append({'date': d, 'value': rec['Net']})
+    return purchases, sales, gross, net
+
+
 fnyr = dataset_timeseries('fnyr')
 repo = dataset_timeseries('repo')
 
 series = {}
-# NY Fed secured rates + percentiles + underlying volume from OFR mirror dataset
 fnyr_map = {
-    'SOFR': 'FNYR-SOFR-A',
-    'SOFR_P1': 'FNYR-SOFR_1Pctl-A',
-    'SOFR_P25': 'FNYR-SOFR_25Pctl-A',
-    'SOFR_P75': 'FNYR-SOFR_75Pctl-A',
-    'SOFR_P99': 'FNYR-SOFR_99Pctl-A',
-    'SOFR_UV': 'FNYR-SOFR_UV-A',
-    'TGCR': 'FNYR-TGCR-A',
-    'TGCR_P1': 'FNYR-TGCR_1Pctl-A',
-    'TGCR_P25': 'FNYR-TGCR_25Pctl-A',
-    'TGCR_P75': 'FNYR-TGCR_75Pctl-A',
-    'TGCR_P99': 'FNYR-TGCR_99Pctl-A',
-    'TGCR_UV': 'FNYR-TGCR_UV-A',
-    'BGCR': 'FNYR-BGCR-A',
-    'BGCR_P1': 'FNYR-BGCR_1Pctl-A',
-    'BGCR_P25': 'FNYR-BGCR_25Pctl-A',
-    'BGCR_P75': 'FNYR-BGCR_75Pctl-A',
-    'BGCR_P99': 'FNYR-BGCR_99Pctl-A',
-    'BGCR_UV': 'FNYR-BGCR_UV-A',
+    'SOFR': 'FNYR-SOFR-A', 'SOFR_P1': 'FNYR-SOFR_1Pctl-A', 'SOFR_P25': 'FNYR-SOFR_25Pctl-A', 'SOFR_P75': 'FNYR-SOFR_75Pctl-A', 'SOFR_P99': 'FNYR-SOFR_99Pctl-A', 'SOFR_UV': 'FNYR-SOFR_UV-A',
+    'TGCR': 'FNYR-TGCR-A', 'TGCR_P1': 'FNYR-TGCR_1Pctl-A', 'TGCR_P25': 'FNYR-TGCR_25Pctl-A', 'TGCR_P75': 'FNYR-TGCR_75Pctl-A', 'TGCR_P99': 'FNYR-TGCR_99Pctl-A', 'TGCR_UV': 'FNYR-TGCR_UV-A',
+    'BGCR': 'FNYR-BGCR-A', 'BGCR_P1': 'FNYR-BGCR_1Pctl-A', 'BGCR_P25': 'FNYR-BGCR_25Pctl-A', 'BGCR_P75': 'FNYR-BGCR_75Pctl-A', 'BGCR_P99': 'FNYR-BGCR_99Pctl-A', 'BGCR_UV': 'FNYR-BGCR_UV-A',
 }
 for out_name, mnemonic in fnyr_map.items():
     series[out_name] = dataset_series(fnyr, mnemonic)
-
-# Backward-compatible single-point aliases removed; use full UV history instead
 series['SOFRVOLUME'] = series['SOFR_UV']
 series['TGCRVOLUME'] = series['TGCR_UV']
 series['BGCRVOLUME'] = series['BGCR_UV']
-
 series['DGS10'] = merge_years('10 Yr')
 series['DGS30'] = merge_years('30 Yr')
 
 repo_mnemonics = {
-    'REPO_GCF_AR_T': 'REPO-GCF_AR_T-F',
-    'REPO_GCF_TV_T': 'REPO-GCF_TV_T-F',
-    'REPO_TRI_AR_T': 'REPO-TRI_AR_T-F',
-    'REPO_TRI_TV_T': 'REPO-TRI_TV_T-F',
-    'REPO_DVP_AR_OO': 'REPO-DVP_AR_OO-F',
-    'REPO_DVP_TV_OO': 'REPO-DVP_TV_OO-F',
+    'REPO_GCF_AR_T': 'REPO-GCF_AR_T-F', 'REPO_GCF_TV_T': 'REPO-GCF_TV_T-F',
+    'REPO_TRI_AR_T': 'REPO-TRI_AR_T-F', 'REPO_TRI_TV_T': 'REPO-TRI_TV_T-F',
+    'REPO_DVP_AR_OO': 'REPO-DVP_AR_OO-F', 'REPO_DVP_TV_OO': 'REPO-DVP_TV_OO-F',
 }
 for out_name, mnemonic in repo_mnemonics.items():
     series[out_name] = dataset_series(repo, mnemonic)
+
+p, s, g, n = frb_longend_proxy_2023()
+series['FRBNY_LONGEND_PURCHASES_2023'] = p
+series['FRBNY_LONGEND_SALES_2023'] = s
+series['FRBNY_LONGEND_GROSS_2023'] = g
+series['FRBNY_LONGEND_NET_2023'] = n
 
 series['SOFR_20d_vol'] = rolling_std_of_changes(series['SOFR'], 20)
 series['TGCR_20d_vol'] = rolling_std_of_changes(series['TGCR'], 20)
