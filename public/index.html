@@ -197,7 +197,8 @@
 
     function toPairs(arr) { return (arr || []).map(x => [x.date, x.value]); }
     function cutoffDateOneYear() {
-      const d = new Date();
+      const latest = Date.parse('2026-03-26T00:00:00Z');
+      const d = new Date(latest);
       d.setUTCFullYear(d.getUTCFullYear() - 1);
       return d.toISOString().slice(0, 10);
     }
