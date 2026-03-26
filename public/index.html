@@ -196,6 +196,17 @@
     }
 
     function toPairs(arr) { return (arr || []).map(x => [x.date, x.value]); }
+    function cutoffDateOneYear() {
+      const d = new Date();
+      d.setUTCFullYear(d.getUTCFullYear() - 1);
+      return d.toISOString().slice(0, 10);
+    }
+
+    function filterLastYear(arr) {
+      const cutoff = cutoffDateOneYear();
+      return (arr || []).filter(x => x.date >= cutoff);
+    }
+
     function lastValue(arr) { return arr && arr.length ? arr[arr.length - 1].value : null; }
     function lastDate(arr) { return arr && arr.length ? arr[arr.length - 1].date : 'n/a'; }
     function fmt(v, digits = 2) { return v == null ? 'n/a' : Number(v).toFixed(digits); }
@@ -251,7 +262,7 @@
     function renderCharts(data) {
       chartDefs.forEach(def => {
         const chart = echarts.init(document.getElementById(def.id));
-        const series = def.series.map(([key, label]) => ({ name: label, data: toPairs(data[key]) }));
+        const series = def.series.map(([key, label]) => ({ name: label, data: toPairs(filterLastYear(data[key])) }));
         chart.setOption(lineOption(def.title, series));
         window.addEventListener('resize', () => chart.resize());
       });
