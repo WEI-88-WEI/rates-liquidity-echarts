@@ -14,3 +14,17 @@
 - Prefer fewer, sharper items; filter aggressively.
 - Drop obvious noise from alias sections too: personal updates, blogger recommendations, generic motivation, sports metaphors, emotional venting, and broad hot-take lists.
 - User explicitly disliked excerpt-style summaries and wants future sessions to preserve this format preference.
+
+## Projects
+
+- The user now uses `fwalert` for phone alerts. To notify them, request: `https://fwalert.com/32b74fca-cf54-4e72-84d9-3840041e8cda`.
+- Create a new repo/project named `price-alerts` (English naming) for the user's price notification work.
+
+- `preps-arbitrage` is a new multi-platform arbitrage dashboard project.
+- Future target venues: `trade.xyz`, `ostium`, `lighter`, `edgex`, `asterdex`, `extended`, `pacifica`.
+- Phase 1 should only integrate `trade.xyz`, `ostium`, and `lighter` first; do not rush all venues at once.
+- Project should be implemented primarily in Python and should use a dedicated virtual environment on the server.
+- Core reference repo is `https://github.com/DING-88-DING/trade.xyz-ostium`, which already contains early `trade.xyz` + `ostium` logic and should be reused/refactored where helpful.
+- Core logic: compare 1M-volume-level symbols pairwise across venues, assume spread converges to 0, subtract fees on both venues, and alert only when net profit remains positive.
+- Product form should be a scalable arbitrage panel/dashboard for multiple venues, not just the old two-venue presentation.
+- In new sessions, remember that the user may continue defining requirements for `preps-arbitrage`, and the assistant should retain the project goal and current phase.
