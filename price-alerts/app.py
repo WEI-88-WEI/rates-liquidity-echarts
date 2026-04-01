@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from dataclasses import asdict, dataclass
@@ -11,10 +12,10 @@ from fastapi import FastAPI
 
 TRADE_XYZ_API_URL = "https://api.hyperliquid.xyz/info"
 OSTIUM_METADATA_BASE = "https://metadata-backend.ostium.io"
-FWALERT_URL = "https://fwalert.com/32b74fca-cf54-4e72-84d9-3840041e8cda"
-POLL_INTERVAL_SECONDS = 5
-THRESHOLD = 3.0
-SYMBOL = "CL"
+FWALERT_URL = os.getenv("FWALERT_URL", "")
+POLL_INTERVAL_SECONDS = int(os.getenv("POLL_INTERVAL_SECONDS", "5"))
+THRESHOLD = float(os.getenv("THRESHOLD", "3"))
+SYMBOL = os.getenv("SYMBOL", "CL")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("price-alerts")

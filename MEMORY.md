@@ -17,7 +17,8 @@
 
 ## Projects
 
-- The user now uses `fwalert` for phone alerts. To notify them, request: `https://fwalert.com/32b74fca-cf54-4e72-84d9-3840041e8cda`.
+- The user now uses `fwalert` for phone alerts.
+- For the `price-alerts` project, keep the fwalert trigger URL out of GitHub and store it locally via environment variables only.
 - Create a new repo/project named `price-alerts` (English naming) for the user's price notification work.
 
 - `preps-arbitrage` is a new multi-platform arbitrage dashboard project.

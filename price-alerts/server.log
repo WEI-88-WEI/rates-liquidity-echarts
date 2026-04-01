@@ -1,6 +1,0 @@
-INFO:     Started server process [457971]
-INFO:     Waiting for application startup.
-2026-04-01 11:32:31,487 INFO Starting monitor loop for CL
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8790 (Press CTRL+C to quit)
-INFO:     127.0.0.1:40164 - "GET /health HTTP/1.1" 200 OK

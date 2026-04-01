@@ -13,7 +13,8 @@ This service monitors `CL` and triggers a phone alert through fwalert when eithe
 
 ## Alert Channel
 
-- fwalert URL: `https://fwalert.com/32b74fca-cf54-4e72-84d9-3840041e8cda`
+- fwalert URL is loaded from environment variable `FWALERT_URL`
+- Copy `.env.example` to `.env` and fill in your local secret value
 
 ## Run locally
 
